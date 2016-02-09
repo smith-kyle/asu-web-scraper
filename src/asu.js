@@ -19,9 +19,10 @@ const asu = {
               url,
               headers: {
                 cookie: `JSESSIONID=${_this.jSessionId.id};`
-              }
+              },
+              timeout: 5000
             };
-            _this.sendRequest(config, courses, resolve, reject);
+            _this.sendRequests(config, courses, resolve, reject);
           });
       }
       else {
@@ -29,9 +30,10 @@ const asu = {
           url,
           headers: {
             cookie: `JSESSIONID=${_this.jSessionId.id};`
-          }
+          },
+          timeout: 5000
         };
-        _this.sendRequest(config, courses, resolve, reject);
+        _this.sendRequests(config, courses, resolve, reject);
       }
     });
   },
@@ -112,35 +114,65 @@ const asu = {
     });
   },
 
-  sendRequest(config, courses, resolve, reject) {
-    const _this = this;
+  sendASUOnlineRequest(config, courses) {
     const asuOnlineConfig = _.clone(config);
     asuOnlineConfig.headers.cookie = `${config.headers.cookie} ${asuOnlineCookie}`;
-    request(asuOnlineConfig, (err, res, html) => {
-      if (err) {
-        reject(err);
-      }
-      const onlineCourses = _this.scrapeHtml(html);
-      console.log(`${_.size(onlineCourses)} ASU Online Courses`);
-      courses.push.apply(courses, _this.scrapeHtml(html));
 
-      const inPersonOrICourseConfig = _.clone(config);
-      inPersonOrICourseConfig.headers.cookie =
-        `${config.headers.cookie} ${inPersonOrICourseCookie}`;
-      request(inPersonOrICourseConfig, (_err, _res, _html) => {
-        if (_err) {
-          reject(_err);
+    return this.sendRequest(asuOnlineConfig, courses)
+      .then(_courses => {
+        console.log(`ASU Online courses scraped. Accumulated course count: ${_.size(_courses)} `);
+        return _courses;
+      });
+  },
+
+  sendInPersonOrICourseRequest(config, courses) {
+    const inPersonOrICourseConfig = _.clone(config);
+    inPersonOrICourseConfig.headers.cookie =
+      `${config.headers.cookie} ${inPersonOrICourseCookie}`;
+
+    return this.sendRequest(inPersonOrICourseConfig, courses)
+      .then(_courses => {
+        console.log(
+          `In person and ICourses scraped. Accumulated course count: ${_.size(_courses)}`
+        );
+        return _courses;
+      });
+  },
+
+  sendRequest(config, courses) {
+    return new Promise((resolve, reject) => {
+      const _this = this;
+      request(config, (err, res, html) => {
+        if ((err && err.code === 'ETIMEDOUT') || !html) {
+          config.timeout += 1000;
+          console.log(`Retrying ${config.url} with a ${config.timeout}ms timeout...`);
+          return this.sendRequest(config, courses);
+        }
+        else if (err) {
+          reject(err);
         }
 
-        const inPersonOrICourses = _this.scrapeHtml(_html);
-        console.log(`${_.size(inPersonOrICourses)} In person or ICourses`);
-        const nonDuplicateCourses = _.filter(inPersonOrICourses, inPersonOrICourse =>
-          !_.find(courses, c => c.courseNumber === inPersonOrICourse.courseNumber)
+        let scrapedCourses;
+        try {
+          scrapedCourses = _this.scrapeHtml(html);
+        }
+        catch (error) {
+          return this.sendRequest(...arguments);
+        }
+        const nonDuplicateCourses = _.filter(scrapedCourses, scrapedCourse =>
+          !_.find(courses, c => c.courseNumber === scrapedCourse.courseNumber)
         );
         courses.push.apply(courses, nonDuplicateCourses);
         resolve(courses);
       });
     });
+  },
+
+  sendRequests(config, courses, resolve, reject) {
+    this.sendInPersonOrICourseRequest(config, courses)
+      .then((_courses) => this.sendASUOnlineRequest(config, _courses))
+      .then(resolve)
+      .catch(reject);
   }
 };
 
