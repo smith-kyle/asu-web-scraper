@@ -172,9 +172,11 @@ const asu = {
   },
 
   sendRequests(config, courses, resolve, reject) {
-    this.sendInPersonOrICourseRequest(config, courses)
-      .then((_courses) => this.sendASUOnlineRequest(config, _courses))
-      .then(resolve)
+    Promise.all([
+      this.sendInPersonOrICourseRequest(config, courses),
+      this.sendASUOnlineRequest(config, courses)
+    ])
+      .then((scrapedCourses) => resolve(scrapedCourses.pop()))
       .catch(reject);
   }
 };
