@@ -26,13 +26,23 @@ MongoClient.connect(mongoUrl, (connectErr, mdb) => {
   const mongoDB = mdb;
   const mongoCollection = mongoDB.collection('courses');
 
-  asu.getCourses(urls)
-    .then((courses) => {
-      mongoCollection.insert(courses, (err) => {
-        stopIfError(err);
-        console.log('\nSCRAPED!');
-        process.exit(0);
-      });
-    })
-    .catch(stopIfError);
+  function updateCoursesForever() {
+    let courses;
+    return asu.getCourses(urls)
+      .then((_courses) => {
+        courses = _courses;
+        return new Promise(
+          (resolve, reject) => mongoCollection.remove({}, err => err ? reject(err) : resolve())
+        );
+      })
+      .then(() =>
+        new Promise(
+          (resolve, reject) =>
+            mongoCollection.insert(courses, err => err ? reject(err) : resolve())
+        )
+      )
+      .catch(stopIfError)
+      .then(updateCoursesForever);
+  }
+  updateCoursesForever();
 });
