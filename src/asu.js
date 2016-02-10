@@ -144,9 +144,9 @@ const asu = {
       const _this = this;
       request(config, (err, res, html) => {
         if ((err && err.code === 'ETIMEDOUT') || !html) {
-          config.timeout += 1000;
+          config.timeout *= 2; // eslint-disable-line
           console.log(`Retrying ${config.url} with a ${config.timeout}ms timeout...`);
-          return this.sendRequest(config, courses);
+          return this.sendRequest(config, courses).then(resolve);
         }
         else if (err) {
           reject(err);
@@ -157,7 +157,10 @@ const asu = {
           scrapedCourses = _this.scrapeHtml(html);
         }
         catch (error) {
-          return this.sendRequest(...arguments);
+          config.timeout *= 2; // eslint-disable-line
+          console.log('Encountered error when parsing html');
+          console.log(`Retrying ${config.url} with a ${config.timeout}ms timeout...`);
+          return this.sendRequest(config, courses).then(resolve);
         }
         const nonDuplicateCourses = _.filter(scrapedCourses, scrapedCourse =>
           !_.find(courses, c => c.courseNumber === scrapedCourse.courseNumber)
