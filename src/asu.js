@@ -10,31 +10,14 @@ const asu = {
     console.log(`Collecting courses from ${url}`);
     const _this = this;
     return new Promise((resolve, reject) => {
-      const jSessionId = _this.jSessionId;
-      if (!jSessionId || !jSessionId.expirationDate || jSessionId.expirationDate < new Date()) {
-        _this.getJSessionId()
-          .then(_jSessionId => {
-            _this.jSessionId = _jSessionId;
-            const config = {
-              url,
-              headers: {
-                cookie: `JSESSIONID=${_this.jSessionId.id};`
-              },
-              timeout: 5000
-            };
-            _this.sendRequests(config, courses, resolve, reject);
-          });
-      }
-      else {
-        const config = {
-          url,
-          headers: {
-            cookie: `JSESSIONID=${_this.jSessionId.id};`
-          },
-          timeout: 5000
-        };
-        _this.sendRequests(config, courses, resolve, reject);
-      }
+      const config = {
+        url,
+        headers: {
+          cookie: `JSESSIONID=${_this.jSessionId.id};`
+        },
+        timeout: 5000
+      };
+      _this.sendRequests(config, courses, resolve, reject);
     });
   },
 
@@ -42,11 +25,12 @@ const asu = {
     return _.reduce(
       urls,
       (promise, url) => promise.then(this.getCoursesFromUrl.bind(this, url)),
-      Promise.resolve()
+      this.getJSessionId().then(_jSessionId => { this.jSessionId = _jSessionId; })
     );
   },
 
   getJSessionId() {
+    console.log('Retrieving jSessionId...');
     return new Promise((resolve, reject) => {
       const options = {
         url: 'https://webapp4.asu.edu/catalog/',
@@ -58,6 +42,7 @@ const asu = {
           return reject(error);
         }
 
+        console.log('jSessionId retrieved!');
         const cookieString = _.reduce(
           response.headers['set-cookie'],
           (cookies, cookie) => cookie + cookies,
