@@ -4,11 +4,12 @@ const fs = require('fs');
 const path = require('path');
 
 const asu = require('./asu');
+const config = require('./config');
 const mongoUrl = 'mongodb://localhost:27017/asu';
 
 function stopIfError(error) {
   if (error) {
-    console.error(error);
+    console.error(error.stack);
     process.exit(2);
   }
 }
@@ -19,6 +20,8 @@ const urls = _.map(
   subjects,
   subject => `https://webapp4.asu.edu/catalog/classlist?s=${subject}&t=2161&e=all&hon=F`
 );
+const chunkSize = Math.ceil(urls.length / config.concurrentRequests);
+const urlChunks = _.chunk(urls, chunkSize);
 
 MongoClient.connect(mongoUrl, (connectErr, mdb) => {
   stopIfError(connectErr);
@@ -28,9 +31,11 @@ MongoClient.connect(mongoUrl, (connectErr, mdb) => {
 
   function updateCoursesForever() {
     let courses;
-    return asu.getCourses(urls)
-      .then((_courses) => {
-        courses = _courses;
+    const startTime = new Date();
+    const promiseArray = _.map(urlChunks, urlChunk => asu.getCourses(urlChunk));
+    return Promise.all(promiseArray)
+      .then((result) => {
+        courses = _.flatten(result);
         return new Promise(
           (resolve, reject) => mongoCollection.remove({}, err => err ? reject(err) : resolve())
         );
@@ -41,6 +46,7 @@ MongoClient.connect(mongoUrl, (connectErr, mdb) => {
             mongoCollection.insert(courses, err => err ? reject(err) : resolve())
         )
       )
+      .then(() => console.log(`Finished in ${(new Date() - startTime)}ms`))
       .catch(stopIfError)
       .then(updateCoursesForever);
   }
