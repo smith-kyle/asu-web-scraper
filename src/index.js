@@ -1,11 +1,10 @@
-const MongoClient = require('mongodb').MongoClient;
 const _ = require('lodash');
 const fs = require('fs');
 const path = require('path');
 
 const asu = require('./asu');
 const config = require('./config');
-const mongoUrl = 'mongodb://localhost:27017/asu';
+const datalayer = require('./datalayer');
 
 function stopIfError(error) {
   if (error) {
@@ -23,32 +22,20 @@ const urls = _.map(
 const chunkSize = Math.ceil(urls.length / config.concurrentRequests);
 const urlChunks = _.chunk(urls, chunkSize);
 
-MongoClient.connect(mongoUrl, (connectErr, mdb) => {
-  stopIfError(connectErr);
+function updateCoursesForever() {
+  let courses;
+  const startTime = new Date();
+  const promiseArray = _.map(urlChunks, urlChunk => asu.getCourses(urlChunk));
+  return Promise.all(promiseArray)
+    .then((result) => {
+      courses = _.flatten(result);
+      return datalayer.removeAllCourses();
+    })
+    .then(() => datalayer.insertCourses(courses))
+    .then(() => console.log(`Finished in ${(new Date() - startTime)}ms`))
+    .catch(stopIfError)
+    .then(updateCoursesForever);
+}
 
-  const mongoDB = mdb;
-  const mongoCollection = mongoDB.collection('courses');
-
-  function updateCoursesForever() {
-    let courses;
-    const startTime = new Date();
-    const promiseArray = _.map(urlChunks, urlChunk => asu.getCourses(urlChunk));
-    return Promise.all(promiseArray)
-      .then((result) => {
-        courses = _.flatten(result);
-        return new Promise(
-          (resolve, reject) => mongoCollection.remove({}, err => err ? reject(err) : resolve())
-        );
-      })
-      .then(() =>
-        new Promise(
-          (resolve, reject) =>
-            mongoCollection.insert(courses, err => err ? reject(err) : resolve())
-        )
-      )
-      .then(() => console.log(`Finished in ${(new Date() - startTime)}ms`))
-      .catch(stopIfError)
-      .then(updateCoursesForever);
-  }
-  updateCoursesForever();
-});
+datalayer.connectDB()
+  .then(updateCoursesForever);
