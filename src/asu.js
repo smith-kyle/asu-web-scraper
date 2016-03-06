@@ -1,24 +1,22 @@
 const request = require('request');
 const _ = require('lodash');
 const cheerio = require('cheerio');
+const datalayer = require('./datalayer');
 
 const asuOnlineCookie = 'onlineCampusSelection=O;';
 const inPersonOrICourseCookie = 'onlineCampusSelection=C;';
 
 const asu = {
-  getCoursesFromUrl(url, courses = []) {
+  getCoursesFromUrl(url) {
     console.log(`Collecting courses from ${url}`);
-    const _this = this;
-    return new Promise((resolve, reject) => {
-      const config = {
-        url,
-        headers: {
-          cookie: `JSESSIONID=${_this.jSessionId.id};`
-        },
-        timeout: 5000
-      };
-      _this.sendRequests(config, courses, resolve, reject);
-    });
+    const config = {
+      url,
+      headers: {
+        cookie: `JSESSIONID=${this.jSessionId.id};`
+      },
+      timeout: 5000
+    };
+    return this.sendRequests(config);
   },
 
   getCourses(urls) {
@@ -99,23 +97,23 @@ const asu = {
     });
   },
 
-  sendASUOnlineRequest(config, courses) {
+  sendASUOnlineRequest(config) {
     const asuOnlineConfig = _.clone(config);
     asuOnlineConfig.headers.cookie = `${config.headers.cookie} ${asuOnlineCookie}`;
 
-    return this.sendRequest(asuOnlineConfig, courses)
+    return this.sendRequest(asuOnlineConfig)
       .then(_courses => {
         console.log(`ASU Online courses scraped. Accumulated course count: ${_.size(_courses)} `);
         return _courses;
       });
   },
 
-  sendInPersonOrICourseRequest(config, courses) {
+  sendInPersonOrICourseRequest(config) {
     const inPersonOrICourseConfig = _.clone(config);
     inPersonOrICourseConfig.headers.cookie =
       `${config.headers.cookie} ${inPersonOrICourseCookie}`;
 
-    return this.sendRequest(inPersonOrICourseConfig, courses)
+    return this.sendRequest(inPersonOrICourseConfig)
       .then(_courses => {
         console.log(
           `In person and ICourses scraped. Accumulated course count: ${_.size(_courses)}`
@@ -124,14 +122,14 @@ const asu = {
       });
   },
 
-  sendRequest(config, courses) {
+  sendRequest(config) {
     return new Promise((resolve, reject) => {
       const _this = this;
       request(config, (err, res, html) => {
         if ((err && err.code === 'ETIMEDOUT') || !html) {
           config.timeout *= 2; // eslint-disable-line
           console.log(`Retrying ${config.url} with a ${config.timeout}ms timeout...`);
-          return this.sendRequest(config, courses).then(resolve);
+          return this.sendRequest(config).then(resolve);
         }
         else if (err) {
           reject(err);
@@ -145,24 +143,26 @@ const asu = {
           config.timeout *= 2; // eslint-disable-line
           console.log('Encountered error when parsing html');
           console.log(`Retrying ${config.url} with a ${config.timeout}ms timeout...`);
-          return this.sendRequest(config, courses).then(resolve);
+          return this.sendRequest(config).then(resolve);
         }
-        const nonDuplicateCourses = _.filter(scrapedCourses, scrapedCourse =>
-          !_.find(courses, c => c.courseNumber === scrapedCourse.courseNumber)
-        );
-        courses.push.apply(courses, nonDuplicateCourses);
-        resolve(courses);
+
+        resolve(scrapedCourses);
       });
     });
   },
 
-  sendRequests(config, courses, resolve, reject) {
-    Promise.all([
-      this.sendInPersonOrICourseRequest(config, courses),
-      this.sendASUOnlineRequest(config, courses)
+  sendRequests(config) {
+    return Promise.all([
+      this.sendInPersonOrICourseRequest(config),
+      this.sendASUOnlineRequest(config)
     ])
-      .then((scrapedCourses) => resolve(scrapedCourses.pop()))
-      .catch(reject);
+      .then((scrapedCourses) => {
+        const allCourses = _.flatten(scrapedCourses[0], scrapedCourses[1]);
+        const uniqeCourses = _.uniqBy(allCourses, 'courseNumber');
+        return !_.isEmpty(uniqeCourses)
+          ? datalayer.updateCourses(uniqeCourses)
+          : null;
+      });
   }
 };
 
