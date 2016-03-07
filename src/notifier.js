@@ -23,6 +23,12 @@ const Notifier = {
           this.notifyUserOfCourse(user, openCourse);
           datalayer.markAsNotfied(user.username, openCourse.courseNumber);
         });
+        const waitingForUpdate = _.some(
+          user.courses,
+          course => course.status === 'pending'
+            && !_.some(openCourses, openCourse => openCourse.courseNumber === course.number)
+        );
+        return datalayer.updateIsUserWaiting(user.username, waitingForUpdate);
       });
   },
 

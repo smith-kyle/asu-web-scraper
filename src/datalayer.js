@@ -102,6 +102,23 @@ const DataLayer = {
       });
       bulk.execute(err => err ? reject(err) : resolve());
     });
+  },
+
+  updateIsUserWaiting(username, waitingForUpdate) {
+    return new Promise((resolve, reject) => {
+      MongoClient.connect('mongodb://localhost:27017/parse', (connectErr, mdb) => {
+        if (connectErr) {
+          reject(connectErr);
+        }
+        const usersCollection = mdb.collection('_User');
+        usersCollection.update(
+          { username },
+          { $set: { waitingForUpdate } },
+          { upsert: false },
+          err => err ? reject(err) : resolve()
+        );
+      });
+    });
   }
 };
 
