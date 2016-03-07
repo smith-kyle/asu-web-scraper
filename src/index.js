@@ -5,6 +5,7 @@ const path = require('path');
 const asu = require('./asu');
 const config = require('./config');
 const datalayer = require('./datalayer');
+const notifier = require('./notifier');
 
 function stopIfError(error) {
   if (error) {
@@ -27,6 +28,7 @@ function updateCoursesForever() {
   const promiseArray = _.map(urlChunks, urlChunk => asu.getCourses(urlChunk));
   return Promise.all(promiseArray)
     .then(() => console.timeEnd('Course scraping'))
+    .then(() => notifier.notifyAllUsersIfClassOpened())
     .then(updateCoursesForever)
     .catch(stopIfError);
 }
