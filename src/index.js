@@ -5,7 +5,7 @@ const path = require('path');
 const asu = require('./asu');
 const config = require('./config');
 const datalayer = require('./datalayer');
-const notifier = require('./notifier');
+const notifier = require('./notification/notifier');
 
 function stopIfError(error) {
   if (error) {

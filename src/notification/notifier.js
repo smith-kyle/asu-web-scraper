@@ -1,5 +1,7 @@
 const _ = require('lodash');
-const datalayer = require('./datalayer');
+const datalayer = require('../datalayer');
+const mail = require('./mail');
+const twilio = require('./twilio');
 
 const Notifier = {
   notifyAllUsersIfClassOpened() {
@@ -19,21 +21,30 @@ const Notifier = {
     return Promise.all(numberToCoursePromises)
       .then((courses) => {
         const openCourses = _.filter(courses, course => _.toNumber(course.availableSeats) > 0);
-        _.forEach(openCourses, openCourse => {
-          this.notifyUserOfCourse(user, openCourse);
-          datalayer.markAsNotfied(user.username, openCourse.courseNumber);
-        });
+        const notifyPromiseArray = _.map(openCourses, openCourse =>
+          this.sendUserNotifications(user, openCourse)
+            .then(() => datalayer.markAsNotfied(user.username, openCourse.courseNumber))
+        );
+
         const waitingForUpdate = _.some(
           user.courses,
           course => course.status === 'pending'
             && !_.some(openCourses, openCourse => openCourse.courseNumber === course.number)
         );
-        return datalayer.updateIsUserWaiting(user.username, waitingForUpdate);
+        return Promise.all(notifyPromiseArray)
+          .then(() => datalayer.updateIsUserWaiting(user.username, waitingForUpdate));
       });
   },
 
-  notifyUserOfCourse(user, course) {
-    console.log(`Notfied ${user.username} that ${course.courseNumber} is open`);
+  sendUserNotifications(user, course) {
+    const { notificationMethods } = user;
+    return Promise.resolve()
+      .then(() =>
+        _.some(notificationMethods, m => m === 'sms') ? twilio.sendUserSMS(user, course) : null
+      )
+      .then(() =>
+        _.some(notificationMethods, m => m === 'email') ? mail.sendUserEmail(user, course) : null
+      );
   }
 };
 

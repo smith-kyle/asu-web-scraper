@@ -21,6 +21,8 @@
     "eslint-plugin-react": "^3.11.2",
     "lodash": "^4.2.1",
     "mongodb": "^2.1.6",
-    "request": "^2.69.0"
+    "nodemailer": "^2.3.0",
+    "request": "^2.69.0",
+    "twilio": "^2.9.0"
   }
 }
