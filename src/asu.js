@@ -1,6 +1,5 @@
 const request = require('request');
 const _ = require('lodash');
-const cheerio = require('cheerio');
 const datalayer = require('./datalayer');
 
 const asuOnlineCookie = 'onlineCampusSelection=O;';
@@ -57,6 +56,7 @@ const asu = {
   jSessionId: null,
 
   scrapeHtml(html) {
+    const cheerio = require('cheerio');
     const $ = cheerio.load(html);
     const courseGroups = $('.grpOdd, .grpEven, .grpOddTitle, .grpEvenTitle');
     if (!courseGroups) {
