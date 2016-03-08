@@ -72,7 +72,7 @@ const asu = {
     }
 
     // Need to use the context given by cheerio, thus no arrow function
-    return courseGroups.map(function () {
+    const result = courseGroups.map(function () {
       const location = normalizeText($('.locationBuildingColumnValue a', this).text()); // eslint-disable-line
       return {
         courseNumber: normalizeText($('.classNbrColumnValue a', this).text()),
@@ -95,6 +95,8 @@ const asu = {
         )
       };
     });
+    $('html').empty();
+    return result;
   },
 
   sendASUOnlineRequest(config) {
